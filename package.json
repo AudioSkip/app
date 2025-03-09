@@ -4,7 +4,8 @@
   "description": "A TypeScript server that can receive webhook events from the WhatsApp Cloud API",
   "main": "dist/server.js",
   "scripts": {
-    "build": "tsc && mkdir -p dist/public && cp -r src/public/* dist/public/",
+    "build": "tsc && mkdir -p dist/public && cp -r src/public/* dist/public/ && npm run build:functions",
+    "build:functions": "mkdir -p netlify/functions && cp -r netlify/functions/* netlify/functions/",
     "start": "node dist/server.js",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "test:webhook": "ts-node src/scripts/test-webhook.ts",
@@ -23,6 +24,7 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "helmet": "^8.0.0",
+    "serverless-http": "^3.2.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.2"
   },
