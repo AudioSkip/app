@@ -2,13 +2,17 @@ const express = require('express');
 const serverless = require('serverless-http');
 const cors = require('cors');
 const helmet = require('helmet');
-const dotenv = require('dotenv');
-
-// Load environment variables
-dotenv.config();
 
 // Initialize express app
 const app = express();
+
+// Get environment variables
+const WHATSAPP_VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
+const NODE_ENV = process.env.NODE_ENV || 'development';
+
+// Log environment for debugging
+console.log(`Running in ${NODE_ENV} environment`);
+console.log(`Verify token is ${WHATSAPP_VERIFY_TOKEN ? 'set' : 'not set'}`);
 
 // Middleware
 app.use(helmet({
@@ -29,7 +33,8 @@ app.get('/api/health', (req, res) => {
   res.status(200).json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    service: 'whatsapp-webhook-server'
+    service: 'whatsapp-webhook-server',
+    environment: NODE_ENV
   });
 });
 
@@ -39,19 +44,25 @@ app.get('/api/webhook', (req, res) => {
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
 
+  console.log('Webhook verification request received');
+  console.log(`Mode: ${mode}, Token: ${token}, Challenge: ${challenge}`);
+  console.log(`Expected token: ${WHATSAPP_VERIFY_TOKEN}`);
+
   // Check if a token and mode is in the query string of the request
   if (mode && token) {
     // Check the mode and token sent are correct
-    if (mode === 'subscribe' && token === process.env.WHATSAPP_VERIFY_TOKEN) {
+    if (mode === 'subscribe' && token === WHATSAPP_VERIFY_TOKEN) {
       // Respond with the challenge token from the request
       console.log('WEBHOOK_VERIFIED');
       res.status(200).send(challenge);
     } else {
       // Respond with '403 Forbidden' if verify tokens do not match
+      console.log('WEBHOOK_VERIFICATION_FAILED: Token mismatch');
       res.sendStatus(403);
     }
   } else {
     // Respond with '400 Bad Request' if required parameters are missing
+    console.log('WEBHOOK_VERIFICATION_FAILED: Missing parameters');
     res.sendStatus(400);
   }
 });
@@ -59,6 +70,8 @@ app.get('/api/webhook', (req, res) => {
 // Webhook endpoint to receive events
 app.post('/api/webhook', (req, res) => {
   const body = req.body;
+
+  console.log('Webhook event received:', JSON.stringify(body));
 
   // Check if this is an event from a WhatsApp API
   if (body.object === 'whatsapp_business_account') {
@@ -109,7 +122,7 @@ app.use((err, req, res, next) => {
   
   res.status(statusCode).json({
     message: err.message,
-    stack: process.env.NODE_ENV === 'production' ? '🥞' : err.stack,
+    stack: NODE_ENV === 'production' ? '🥞' : err.stack,
   });
 });
 
