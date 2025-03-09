@@ -2,17 +2,23 @@ const express = require('express');
 const serverless = require('serverless-http');
 const cors = require('cors');
 const helmet = require('helmet');
+const axios = require('axios');
+const FormData = require('form-data');
 
 // Initialize express app
 const app = express();
 
 // Get environment variables
 const WHATSAPP_VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
+const WHATSAPP_API_TOKEN = process.env.WHATSAPP_API_TOKEN;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // Log environment for debugging
 console.log(`Running in ${NODE_ENV} environment`);
 console.log(`Verify token is ${WHATSAPP_VERIFY_TOKEN ? 'set' : 'not set'}`);
+console.log(`WhatsApp API token is ${WHATSAPP_API_TOKEN ? 'set' : 'not set'}`);
+console.log(`OpenAI API key is ${OPENAI_API_KEY ? 'set' : 'not set'}`);
 
 // Middleware
 app.use(helmet({
@@ -67,49 +73,177 @@ app.get('/api/webhook', (req, res) => {
   }
 });
 
+// Function to download media from WhatsApp
+async function downloadMedia(mediaId) {
+  try {
+    const url = `https://graph.facebook.com/v18.0/${mediaId}`;
+    const response = await axios.get(url, {
+      headers: {
+        'Authorization': `Bearer ${WHATSAPP_API_TOKEN}`
+      }
+    });
+
+    const mediaUrl = response.data.url;
+    const mediaResponse = await axios.get(mediaUrl, {
+      headers: {
+        'Authorization': `Bearer ${WHATSAPP_API_TOKEN}`
+      },
+      responseType: 'arraybuffer'
+    });
+
+    return mediaResponse.data;
+  } catch (error) {
+    console.error('Error downloading media:', error);
+    throw error;
+  }
+}
+
+// Function to transcribe audio using OpenAI API
+async function transcribeAudio(audioBuffer) {
+  try {
+    const formData = new FormData();
+    formData.append('file', audioBuffer, {
+      filename: 'audio.ogg',
+      contentType: 'audio/ogg'
+    });
+    formData.append('model', 'whisper-1');
+    formData.append('language', 'en'); // You can change this or make it dynamic
+
+    const response = await axios.post(
+      'https://api.openai.com/v1/audio/transcriptions',
+      formData,
+      {
+        headers: {
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          ...formData.getHeaders()
+        }
+      }
+    );
+
+    return response.data.text;
+  } catch (error) {
+    console.error('Error transcribing audio:', error);
+    throw error;
+  }
+}
+
+// Function to send a message via WhatsApp API
+async function sendWhatsAppMessage(phoneNumberId, to, message) {
+  try {
+    const url = `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`;
+    
+    const data = {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to,
+      type: 'text',
+      text: {
+        body: message
+      }
+    };
+    
+    const response = await axios.post(url, data, {
+      headers: {
+        'Authorization': `Bearer ${WHATSAPP_API_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error sending WhatsApp message:', error);
+    throw error;
+  }
+}
+
 // Webhook endpoint to receive events
-app.post('/api/webhook', (req, res) => {
+app.post('/api/webhook', async (req, res) => {
   const body = req.body;
 
   console.log('Webhook event received:', JSON.stringify(body));
 
-  // Check if this is an event from a WhatsApp API
-  if (body.object === 'whatsapp_business_account') {
-    // Process different types of events
-    if (body.entry && 
-        body.entry[0].changes && 
-        body.entry[0].changes[0] && 
-        body.entry[0].changes[0].value) {
-      
-      const value = body.entry[0].changes[0].value;
-      
-      // Handle different types of messages
-      if (value.messages && value.messages.length > 0) {
-        const message = value.messages[0];
-        const phoneNumberId = value.metadata.phone_number_id;
-        const from = message.from;
+  // Return a '200 OK' response immediately to acknowledge receipt
+  res.status(200).send('EVENT_RECEIVED');
+
+  try {
+    // Check if this is an event from a WhatsApp API
+    if (body.object === 'whatsapp_business_account') {
+      // Process different types of events
+      if (body.entry && 
+          body.entry[0].changes && 
+          body.entry[0].changes[0] && 
+          body.entry[0].changes[0].value) {
         
-        console.log('Message received:', JSON.stringify(message));
+        const value = body.entry[0].changes[0].value;
         
-        // Process the message (simplified for serverless function)
-        console.log(`Processing message of type: ${message.type}`);
-      }
-      
-      // Handle status updates
-      if (value.statuses && value.statuses.length > 0) {
-        const status = value.statuses[0];
-        console.log('Status update received:', JSON.stringify(status));
+        // Handle different types of messages
+        if (value.messages && value.messages.length > 0) {
+          const message = value.messages[0];
+          const phoneNumberId = value.metadata.phone_number_id;
+          const from = message.from;
+          
+          console.log('Message received:', JSON.stringify(message));
+          
+          // Process the message based on type
+          if (message.type === 'audio') {
+            console.log('Audio message received, processing for transcription');
+            
+            try {
+              // Download the audio file
+              const audioBuffer = await downloadMedia(message.audio.id);
+              console.log('Audio downloaded successfully');
+              
+              // Transcribe the audio
+              const transcription = await transcribeAudio(audioBuffer);
+              console.log('Transcription completed:', transcription);
+              
+              // Send the transcription back to the user
+              const responseMessage = `📝 Transcription:\n\n${transcription}`;
+              await sendWhatsAppMessage(phoneNumberId, from, responseMessage);
+              console.log('Transcription sent to user');
+            } catch (error) {
+              console.error('Error processing audio message:', error);
+              
+              // Send error message to user
+              await sendWhatsAppMessage(
+                phoneNumberId, 
+                from, 
+                "Sorry, I couldn't transcribe your audio message. Please try again later."
+              );
+            }
+          } else if (message.type === 'text') {
+            console.log('Text message received:', message.text.body);
+            
+            // Respond to text messages
+            if (message.text.body.toLowerCase().includes('hello') || 
+                message.text.body.toLowerCase().includes('hi')) {
+              await sendWhatsAppMessage(
+                phoneNumberId, 
+                from, 
+                "Hello! I can transcribe audio messages. Send me a voice note and I'll convert it to text."
+              );
+            }
+          } else {
+            console.log(`Received message of type: ${message.type}`);
+            
+            // Optional: Inform user about supported message types
+            await sendWhatsAppMessage(
+              phoneNumberId, 
+              from, 
+              "I can transcribe audio messages. Please send me a voice note."
+            );
+          }
+        }
         
-        // Process the status update (simplified for serverless function)
-        console.log(`Processing status update: ${status.status}`);
+        // Handle status updates
+        if (value.statuses && value.statuses.length > 0) {
+          const status = value.statuses[0];
+          console.log('Status update received:', JSON.stringify(status));
+        }
       }
     }
-    
-    // Return a '200 OK' response to all requests
-    res.status(200).send('EVENT_RECEIVED');
-  } else {
-    // Return a '404 Not Found' if event is not from a WhatsApp API
-    res.sendStatus(404);
+  } catch (error) {
+    console.error('Error processing webhook event:', error);
   }
 });
 
