@@ -177,34 +177,79 @@ async function transcribeAudio(audioBuffer) {
 
 // Function to send a message via WhatsApp API
 async function sendWhatsAppMessage(phoneNumberId, to, message) {
-	try {
-		const url = `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`;
+	const maxRetries = 3;
+	let retryCount = 0;
+	let lastError = null;
 
-		const data = {
-			messaging_product: 'whatsapp',
-			recipient_type: 'individual',
-			to,
-			type: 'text',
-			text: {
-				body: message
+	while (retryCount < maxRetries) {
+		try {
+			const url = `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`;
+
+			const data = {
+				messaging_product: 'whatsapp',
+				recipient_type: 'individual',
+				to,
+				type: 'text',
+				text: {
+					body: message
+				}
+			};
+
+			console.log(`Attempt ${retryCount + 1}/${maxRetries} to send WhatsApp message to ${to}`);
+			
+			// Add a small delay between retries
+			if (retryCount > 0) {
+				await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
 			}
-		};
 
-		const response = await axios.post(url, data, {
-			headers: {
-				'Authorization': `Bearer ${WHATSAPP_API_TOKEN}`,
-				'Content-Type': 'application/json'
+			const response = await axios.post(url, data, {
+				headers: {
+					'Authorization': `Bearer ${WHATSAPP_API_TOKEN}`,
+					'Content-Type': 'application/json'
+				},
+				// Add timeout to prevent hanging requests
+				timeout: 10000,
+				// Disable keep-alive to create a fresh connection each time
+				httpAgent: new (require('http').Agent)({ keepAlive: false }),
+				httpsAgent: new (require('https').Agent)({ 
+					keepAlive: false,
+					rejectUnauthorized: true,
+					secureProtocol: 'TLSv1_2_method'
+				})
+			});
+
+			// Log the API response
+			console.log('WhatsApp API response:', JSON.stringify(response.data));
+			
+			return response.data;
+		} catch (error) {
+			lastError = error;
+			retryCount++;
+			
+			// Log detailed error information
+			console.error(`WhatsApp API error (attempt ${retryCount}/${maxRetries}):`, {
+				message: error.message,
+				code: error.code,
+				errno: error.errno,
+				syscall: error.syscall,
+				status: error.response?.status,
+				statusText: error.response?.statusText,
+				responseData: error.response?.data
+			});
+			
+			// If we've reached max retries or it's not a retryable error, throw
+			if (retryCount >= maxRetries || 
+				(error.code !== 'EPROTO' && error.code !== 'ECONNRESET' && error.code !== 'ETIMEDOUT')) {
+				break;
 			}
-		});
-
-		// Log the API response
-		console.log('WhatsApp API response:', JSON.stringify(response.data));
-
-		return response.data;
-	} catch (error) {
-		console.error('Error sending WhatsApp message:', error);
-		throw error;
+			
+			console.log(`Retrying WhatsApp message to ${to} in ${retryCount} second(s)...`);
+		}
 	}
+	
+	// If all retries failed, throw the last error
+	console.error('All attempts to send WhatsApp message failed');
+	throw lastError;
 }
 
 // Webhook endpoint to receive events
