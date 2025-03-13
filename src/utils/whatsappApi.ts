@@ -1,5 +1,16 @@
-import axios from 'axios';
+import fetch from 'node-fetch';
 import config from '../config';
+import FormData from 'form-data';
+
+// Error handler utility function
+const errorHandler = async (fn: Function, ...args: any[]) => {
+  try {
+    return await fn(...args);
+  } catch (error) {
+    console.error(`Error in ${fn.name || 'anonymous function'}:`, error);
+    throw error;
+  }
+};
 
 class WhatsAppApi {
   private baseUrl = config.whatsapp.baseUrl;
@@ -16,7 +27,7 @@ class WhatsAppApi {
    * Send a text message to a WhatsApp user
    */
   public async sendTextMessage(phoneNumberId: string, to: string, message: string) {
-    try {
+    return errorHandler(async () => {
       const url = `${this.baseUrl}/${phoneNumberId}/messages`;
       
       const data = {
@@ -29,18 +40,21 @@ class WhatsAppApi {
         }
       };
       
-      const response = await axios.post(url, data, {
+      const response = await fetch(url, {
+        method: 'POST',
         headers: {
           'Authorization': `Bearer ${this.apiToken}`,
           'Content-Type': 'application/json'
-        }
+        },
+        body: JSON.stringify(data)
       });
       
-      return response.data;
-    } catch (error) {
-      console.error('Error sending text message:', error);
-      throw error;
-    }
+      if (!response.ok) {
+        throw new Error(`WhatsApp API error: ${response.status} ${response.statusText}`);
+      }
+      
+      return await response.json();
+    });
   }
 
   /**
@@ -54,7 +68,7 @@ class WhatsAppApi {
     caption?: string,
     filename?: string
   ) {
-    try {
+    return errorHandler(async () => {
       const url = `${this.baseUrl}/${phoneNumberId}/messages`;
       
       const mediaObject: any = {
@@ -77,18 +91,21 @@ class WhatsAppApi {
         [mediaType]: mediaObject
       };
       
-      const response = await axios.post(url, data, {
+      const response = await fetch(url, {
+        method: 'POST',
         headers: {
           'Authorization': `Bearer ${this.apiToken}`,
           'Content-Type': 'application/json'
-        }
+        },
+        body: JSON.stringify(data)
       });
       
-      return response.data;
-    } catch (error) {
-      console.error('Error sending media message:', error);
-      throw error;
-    }
+      if (!response.ok) {
+        throw new Error(`WhatsApp API error: ${response.status} ${response.statusText}`);
+      }
+      
+      return await response.json();
+    });
   }
 
   /**
@@ -102,7 +119,7 @@ class WhatsAppApi {
     name?: string,
     address?: string
   ) {
-    try {
+    return errorHandler(async () => {
       const url = `${this.baseUrl}/${phoneNumberId}/messages`;
       
       const locationObject: any = {
@@ -126,25 +143,28 @@ class WhatsAppApi {
         location: locationObject
       };
       
-      const response = await axios.post(url, data, {
+      const response = await fetch(url, {
+        method: 'POST',
         headers: {
           'Authorization': `Bearer ${this.apiToken}`,
           'Content-Type': 'application/json'
-        }
+        },
+        body: JSON.stringify(data)
       });
       
-      return response.data;
-    } catch (error) {
-      console.error('Error sending location message:', error);
-      throw error;
-    }
+      if (!response.ok) {
+        throw new Error(`WhatsApp API error: ${response.status} ${response.statusText}`);
+      }
+      
+      return await response.json();
+    });
   }
 
   /**
    * Upload media to WhatsApp servers
    */
   public async uploadMedia(phoneNumberId: string, mediaType: string, mediaUrl: string) {
-    try {
+    return errorHandler(async () => {
       const url = `${this.baseUrl}/${phoneNumberId}/media`;
       
       const formData = new FormData();
@@ -152,18 +172,21 @@ class WhatsAppApi {
       formData.append('file', mediaUrl);
       formData.append('type', mediaType);
       
-      const response = await axios.post(url, formData, {
+      const response = await fetch(url, {
+        method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiToken}`,
-          'Content-Type': 'multipart/form-data'
-        }
+          'Authorization': `Bearer ${this.apiToken}`
+          // FormData will set its own content-type with boundary
+        },
+        body: formData
       });
       
-      return response.data;
-    } catch (error) {
-      console.error('Error uploading media:', error);
-      throw error;
-    }
+      if (!response.ok) {
+        throw new Error(`WhatsApp API error: ${response.status} ${response.statusText}`);
+      }
+      
+      return await response.json();
+    });
   }
 }
 

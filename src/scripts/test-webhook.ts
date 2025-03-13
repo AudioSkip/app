@@ -1,4 +1,4 @@
-import axios from 'axios';
+import fetch from 'node-fetch';
 import config from '../config';
 
 /**
@@ -16,19 +16,19 @@ async function testWebhookVerification() {
     console.log(`Challenge: ${challenge}`);
     
     // Test with correct verify token
-    const correctResponse = await axios.get(baseUrl, {
-      params: {
-        'hub.mode': 'subscribe',
-        'hub.verify_token': verifyToken,
-        'hub.challenge': challenge
-      }
-    });
+    const correctUrl = new URL(baseUrl);
+    correctUrl.searchParams.append('hub.mode', 'subscribe');
+    correctUrl.searchParams.append('hub.verify_token', verifyToken);
+    correctUrl.searchParams.append('hub.challenge', challenge);
+    
+    const correctResponse = await fetch(correctUrl.toString());
+    const correctData = await correctResponse.text();
     
     console.log('\nCorrect verify token test:');
     console.log(`Status: ${correctResponse.status}`);
-    console.log(`Response: ${correctResponse.data}`);
+    console.log(`Response: ${correctData}`);
     
-    if (correctResponse.status === 200 && correctResponse.data === challenge) {
+    if (correctResponse.status === 200 && correctData === challenge) {
       console.log('✅ Webhook verification successful!');
     } else {
       console.log('❌ Webhook verification failed!');
@@ -36,42 +36,39 @@ async function testWebhookVerification() {
     
     // Test with incorrect verify token
     try {
-      const incorrectResponse = await axios.get(baseUrl, {
-        params: {
-          'hub.mode': 'subscribe',
-          'hub.verify_token': 'wrong_token',
-          'hub.challenge': challenge
-        }
-      });
+      const incorrectUrl = new URL(baseUrl);
+      incorrectUrl.searchParams.append('hub.mode', 'subscribe');
+      incorrectUrl.searchParams.append('hub.verify_token', 'wrong_token');
+      incorrectUrl.searchParams.append('hub.challenge', challenge);
+      
+      const incorrectResponse = await fetch(incorrectUrl.toString());
       
       console.log('\nIncorrect verify token test:');
       console.log(`Status: ${incorrectResponse.status}`);
-      console.log('❌ Test failed! Should have received a 403 error.');
-    } catch (error: any) {
-      if (error.response && error.response.status === 403) {
-        console.log('\nIncorrect verify token test:');
-        console.log(`Status: ${error.response.status}`);
+      
+      if (incorrectResponse.status === 403) {
         console.log('✅ Test passed! Received expected 403 error.');
       } else {
-        throw error;
+        console.log('❌ Test failed! Should have received a 403 error.');
       }
+    } catch (error: any) {
+      console.error('Error in incorrect token test:', error);
     }
     
     // Test with missing parameters
     try {
-      const missingParamsResponse = await axios.get(baseUrl);
+      const missingParamsResponse = await fetch(baseUrl);
       
       console.log('\nMissing parameters test:');
       console.log(`Status: ${missingParamsResponse.status}`);
-      console.log('❌ Test failed! Should have received a 400 error.');
-    } catch (error: any) {
-      if (error.response && error.response.status === 400) {
-        console.log('\nMissing parameters test:');
-        console.log(`Status: ${error.response.status}`);
+      
+      if (missingParamsResponse.status === 400) {
         console.log('✅ Test passed! Received expected 400 error.');
       } else {
-        throw error;
+        console.log('❌ Test failed! Should have received a 400 error.');
       }
+    } catch (error: any) {
+      console.error('Error in missing parameters test:', error);
     }
     
   } catch (error) {

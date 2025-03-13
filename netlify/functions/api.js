@@ -7,8 +7,8 @@ const fs = require('fs');
 const util = require('util');
 const stream = require('stream');
 const pipeline = util.promisify(stream.pipeline);
-// Add node-fetch for Node.js environments
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+// Use CommonJS import for node-fetch v2
+const fetch = require('node-fetch');
 
 // Initialize express app
 const app = express();

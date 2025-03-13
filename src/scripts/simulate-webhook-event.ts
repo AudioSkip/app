@@ -1,4 +1,4 @@
-import axios from 'axios';
+import fetch from 'node-fetch';
 import config from '../config';
 
 /**
@@ -55,16 +55,20 @@ async function simulateWebhookEvent() {
     console.log('\nSending text message event:');
     console.log(JSON.stringify(textMessageEvent, null, 2));
     
-    const textResponse = await axios.post(baseUrl, textMessageEvent, {
+    const textResponse = await fetch(baseUrl, {
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json'
-      }
+      },
+      body: JSON.stringify(textMessageEvent)
     });
     
-    console.log(`Status: ${textResponse.status}`);
-    console.log(`Response: ${textResponse.data}`);
+    const textData = await textResponse.text();
     
-    if (textResponse.status === 200 && textResponse.data === 'EVENT_RECEIVED') {
+    console.log(`Status: ${textResponse.status}`);
+    console.log(`Response: ${textData}`);
+    
+    if (textResponse.status === 200 && textData === 'EVENT_RECEIVED') {
       console.log('✅ Text message event simulation successful!');
     } else {
       console.log('❌ Text message event simulation failed!');
@@ -106,16 +110,20 @@ async function simulateWebhookEvent() {
     console.log('\nSending status update event:');
     console.log(JSON.stringify(statusUpdateEvent, null, 2));
     
-    const statusResponse = await axios.post(baseUrl, statusUpdateEvent, {
+    const statusResponse = await fetch(baseUrl, {
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json'
-      }
+      },
+      body: JSON.stringify(statusUpdateEvent)
     });
     
-    console.log(`Status: ${statusResponse.status}`);
-    console.log(`Response: ${statusResponse.data}`);
+    const statusData = await statusResponse.text();
     
-    if (statusResponse.status === 200 && statusResponse.data === 'EVENT_RECEIVED') {
+    console.log(`Status: ${statusResponse.status}`);
+    console.log(`Response: ${statusData}`);
+    
+    if (statusResponse.status === 200 && statusData === 'EVENT_RECEIVED') {
       console.log('✅ Status update event simulation successful!');
     } else {
       console.log('❌ Status update event simulation failed!');
