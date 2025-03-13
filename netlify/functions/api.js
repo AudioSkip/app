@@ -197,6 +197,9 @@ async function sendWhatsAppMessage(phoneNumberId, to, message) {
       }
     });
     
+    // Log the API response
+    console.log('WhatsApp API response:', JSON.stringify(response.data));
+    
     return response.data;
   } catch (error) {
     console.error('Error sending WhatsApp message:', error);
