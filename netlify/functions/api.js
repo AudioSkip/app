@@ -4,6 +4,10 @@ const cors = require('cors');
 const helmet = require('helmet');
 const axios = require('axios');
 const FormData = require('form-data');
+const fs = require('fs');
+const util = require('util');
+const stream = require('stream');
+const pipeline = util.promisify(stream.pipeline);
 
 // Initialize express app
 const app = express();
@@ -42,6 +46,50 @@ app.get('/api/health', (req, res) => {
     service: 'whatsapp-webhook-server',
     environment: NODE_ENV
   });
+});
+
+// Simple test endpoint
+app.get('/api/test', (req, res) => {
+  res.status(200).json({
+    message: 'Test endpoint is working!',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Test transcription endpoint
+app.post('/api/test-transcription', async (req, res) => {
+  try {
+    const { audioUrl } = req.body;
+    
+    if (!audioUrl) {
+      return res.status(400).json({ error: 'audioUrl is required' });
+    }
+    
+    console.log(`Attempting to transcribe audio from URL: ${audioUrl}`);
+    
+    // Download the audio file
+    const audioResponse = await axios.get(audioUrl, {
+      responseType: 'arraybuffer'
+    });
+    
+    console.log('Audio downloaded successfully');
+    
+    // Transcribe the audio
+    const transcription = await transcribeAudio(audioResponse.data);
+    console.log('Transcription completed:', transcription);
+    
+    // Return the transcription
+    res.status(200).json({
+      success: true,
+      transcription
+    });
+  } catch (error) {
+    console.error('Error in test-transcription endpoint:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
 });
 
 // Webhook verification endpoint

@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Transcription</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      color: #333;
+    }
+    h1 {
+      color: #075e54;
+      border-bottom: 2px solid #25d366;
+      padding-bottom: 10px;
+    }
+    .container {
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      padding: 20px;
+      margin-top: 20px;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    input[type="text"], input[type="file"] {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    .tabs {
+      display: flex;
+      margin-bottom: 20px;
+      border-bottom: 1px solid #ddd;
+    }
+    .tab {
+      padding: 10px 15px;
+      cursor: pointer;
+      margin-right: 5px;
+      border: 1px solid transparent;
+      border-bottom: none;
+      border-radius: 4px 4px 0 0;
+    }
+    .tab.active {
+      background-color: #f5f5f5;
+      border-color: #ddd;
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    button {
+      background-color: #128c7e;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #075e54;
+    }
+    .result {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #f5f5f5;
+      border-radius: 4px;
+      white-space: pre-wrap;
+    }
+    .error {
+      color: #d32f2f;
+      font-weight: bold;
+    }
+    .loading {
+      display: none;
+      margin-top: 15px;
+    }
+    .sample-links {
+      margin-top: 15px;
+      padding: 10px;
+      background-color: #f5f5f5;
+      border-radius: 4px;
+    }
+    .sample-links a {
+      display: block;
+      margin-bottom: 5px;
+      color: #128c7e;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Test Transcription</h1>
+    
+    <div class="tabs">
+      <div class="tab active" data-tab="url">URL Method</div>
+      <div class="tab" data-tab="file">File Upload Method</div>
+    </div>
+    
+    <div class="tab-content active" id="url-tab">
+      <div class="form-group">
+        <label for="audioUrl">Audio URL:</label>
+        <input type="text" id="audioUrl" placeholder="https://example.com/audio.mp3">
+      </div>
+      
+      <button id="transcribeUrlBtn">Transcribe from URL</button>
+      
+      <div class="sample-links">
+        <p><strong>Sample Audio URLs:</strong></p>
+        <a href="#" class="sample-url" data-url="https://github.com/mozilla/DeepSpeech/raw/master/data/smoke_test/smoke_test.wav">Mozilla DeepSpeech Test Audio</a>
+        <a href="#" class="sample-url" data-url="https://file-examples.com/storage/fe8c7eef0c6364f6c9504cc/2017/11/file_example_MP3_700KB.mp3">Sample MP3 File (700KB)</a>
+      </div>
+    </div>
+    
+    <div class="tab-content" id="file-tab">
+      <div class="form-group">
+        <label for="audioFile">Audio File:</label>
+        <input type="file" id="audioFile" accept="audio/*">
+      </div>
+      
+      <button id="transcribeFileBtn">Transcribe from File</button>
+      
+      <p><small>Note: Your file will be temporarily uploaded to a secure service to generate a URL for transcription.</small></p>
+    </div>
+    
+    <div class="loading" id="loading">
+      <p>Transcribing... This may take a few moments.</p>
+    </div>
+    
+    <div class="result" id="result" style="display: none;"></div>
+  </div>
+
+  <script>
+    // Tab switching
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        
+        tab.classList.add('active');
+        document.getElementById(`${tab.dataset.tab}-tab`).classList.add('active');
+      });
+    });
+    
+    // Sample URL links
+    document.querySelectorAll('.sample-url').forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.getElementById('audioUrl').value = link.dataset.url;
+      });
+    });
+    
+    // Transcribe from URL
+    document.getElementById('transcribeUrlBtn').addEventListener('click', async () => {
+      const audioUrl = document.getElementById('audioUrl').value.trim();
+      const resultDiv = document.getElementById('result');
+      const loadingDiv = document.getElementById('loading');
+      
+      if (!audioUrl) {
+        resultDiv.innerHTML = '<span class="error">Please enter an audio URL</span>';
+        resultDiv.style.display = 'block';
+        return;
+      }
+      
+      resultDiv.style.display = 'none';
+      loadingDiv.style.display = 'block';
+      
+      try {
+        const response = await fetch('/api/test-transcription', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ audioUrl })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          resultDiv.innerHTML = `<strong>Transcription:</strong>\n\n${data.transcription}`;
+        } else {
+          resultDiv.innerHTML = `<span class="error">Error: ${data.error}</span>`;
+        }
+      } catch (error) {
+        resultDiv.innerHTML = `<span class="error">Error: ${error.message}</span>`;
+      } finally {
+        loadingDiv.style.display = 'none';
+        resultDiv.style.display = 'block';
+      }
+    });
+    
+    // Transcribe from File
+    document.getElementById('transcribeFileBtn').addEventListener('click', async () => {
+      const fileInput = document.getElementById('audioFile');
+      const resultDiv = document.getElementById('result');
+      const loadingDiv = document.getElementById('loading');
+      
+      if (!fileInput.files || fileInput.files.length === 0) {
+        resultDiv.innerHTML = '<span class="error">Please select an audio file</span>';
+        resultDiv.style.display = 'block';
+        return;
+      }
+      
+      const file = fileInput.files[0];
+      resultDiv.style.display = 'none';
+      loadingDiv.style.display = 'block';
+      
+      try {
+        // First, upload the file to get a URL
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        // Using filebin.net as a temporary file host
+        const uploadResponse = await fetch('https://filebin.net/audioskip/upload', {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (!uploadResponse.ok) {
+          throw new Error('Failed to upload file');
+        }
+        
+        const uploadData = await uploadResponse.json();
+        const fileUrl = uploadData.url;
+        
+        // Now transcribe the uploaded file
+        const transcribeResponse = await fetch('/api/test-transcription', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ audioUrl: fileUrl })
+        });
+        
+        const data = await transcribeResponse.json();
+        
+        if (data.success) {
+          resultDiv.innerHTML = `<strong>Transcription:</strong>\n\n${data.transcription}`;
+        } else {
+          resultDiv.innerHTML = `<span class="error">Error: ${data.error}</span>`;
+        }
+      } catch (error) {
+        resultDiv.innerHTML = `<span class="error">Error: ${error.message}</span>`;
+      } finally {
+        loadingDiv.style.display = 'none';
+        resultDiv.style.display = 'block';
+      }
+    });
+  </script>
+</body>
+</html> 

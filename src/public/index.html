@@ -56,6 +56,19 @@
       font-size: 0.9em;
       color: #777;
     }
+    .test-link {
+      display: inline-block;
+      margin-top: 20px;
+      padding: 10px 15px;
+      background-color: #128c7e;
+      color: white;
+      text-decoration: none;
+      border-radius: 4px;
+      font-weight: bold;
+    }
+    .test-link:hover {
+      background-color: #075e54;
+    }
   </style>
 </head>
 <body>
@@ -81,6 +94,13 @@
       <h3>Health Check</h3>
       <p><code>GET /api/health</code></p>
       <p>Returns the current status of the server.</p>
+    </div>
+    
+    <div class="endpoint">
+      <h3>Test Transcription</h3>
+      <p><code>POST /api/test-transcription</code></p>
+      <p>Test the audio transcription feature by providing an audio URL.</p>
+      <a href="/test-transcription.html" class="test-link">Test Transcription Tool</a>
     </div>
     
     <h2>Setup Instructions</h2>
