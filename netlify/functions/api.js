@@ -2,12 +2,13 @@ const express = require('express');
 const serverless = require('serverless-http');
 const cors = require('cors');
 const helmet = require('helmet');
-const axios = require('axios');
 const FormData = require('form-data');
 const fs = require('fs');
 const util = require('util');
 const stream = require('stream');
 const pipeline = util.promisify(stream.pipeline);
+// Add node-fetch for Node.js environments
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 
 // Initialize express app
 const app = express();
@@ -58,7 +59,7 @@ app.get('/api/test', (req, res) => {
 
 // Test transcription endpoint
 app.post('/api/test-transcription', async (req, res) => {
-	try {
+	await errorHandler(async () => {
 		const { audioUrl } = req.body;
 
 		if (!audioUrl) {
@@ -68,14 +69,13 @@ app.post('/api/test-transcription', async (req, res) => {
 		console.log(`Attempting to transcribe audio from URL: ${audioUrl}`);
 
 		// Download the audio file
-		const audioResponse = await axios.get(audioUrl, {
-			responseType: 'arraybuffer'
-		});
+		const audioResponse = await fetch(audioUrl);
+		const audioBuffer = await audioResponse.arrayBuffer();
 
 		console.log('Audio downloaded successfully');
 
 		// Transcribe the audio
-		const transcription = await transcribeAudio(audioResponse.data);
+		const transcription = await transcribeAudio(Buffer.from(audioBuffer));
 		console.log('Transcription completed:', transcription);
 
 		// Return the transcription
@@ -83,13 +83,13 @@ app.post('/api/test-transcription', async (req, res) => {
 			success: true,
 			transcription
 		});
-	} catch (error) {
+	}).catch(error => {
 		console.error('Error in test-transcription endpoint:', error);
 		res.status(500).json({
 			success: false,
 			error: error.message
 		});
-	}
+	});
 });
 
 // Webhook verification endpoint
@@ -123,32 +123,38 @@ app.get('/api/webhook', (req, res) => {
 
 // Function to download media from WhatsApp
 async function downloadMedia(mediaId) {
-	try {
+	return errorHandler(async () => {
 		const url = `https://graph.facebook.com/v18.0/${mediaId}`;
-		const response = await axios.get(url, {
+		const response = await fetch(url, {
 			headers: {
 				'Authorization': `Bearer ${WHATSAPP_API_TOKEN}`
 			}
 		});
 
-		const mediaUrl = response.data.url;
-		const mediaResponse = await axios.get(mediaUrl, {
+		if (!response.ok) {
+			throw new Error(`Failed to fetch media info: ${response.status} ${response.statusText}`);
+		}
+
+		const data = await response.json();
+		const mediaUrl = data.url;
+		
+		const mediaResponse = await fetch(mediaUrl, {
 			headers: {
 				'Authorization': `Bearer ${WHATSAPP_API_TOKEN}`
-			},
-			responseType: 'arraybuffer'
+			}
 		});
 
-		return mediaResponse.data;
-	} catch (error) {
-		console.error('Error downloading media:', error);
-		throw error;
-	}
+		if (!mediaResponse.ok) {
+			throw new Error(`Failed to download media: ${mediaResponse.status} ${mediaResponse.statusText}`);
+		}
+
+		return Buffer.from(await mediaResponse.arrayBuffer());
+	});
 }
 
 // Function to transcribe audio using OpenAI API
 async function transcribeAudio(audioBuffer) {
-	try {
+	return errorHandler(async () => {
 		const formData = new FormData();
 		formData.append('file', audioBuffer, {
 			filename: 'audio.ogg',
@@ -157,22 +163,25 @@ async function transcribeAudio(audioBuffer) {
 		formData.append('model', 'whisper-1');
 		formData.append('language', 'en'); // You can change this or make it dynamic
 
-		const response = await axios.post(
+		const response = await fetch(
 			'https://api.openai.com/v1/audio/transcriptions',
-			formData,
 			{
+				method: 'POST',
 				headers: {
-					'Authorization': `Bearer ${OPENAI_API_KEY}`,
-					...formData.getHeaders()
-				}
+					'Authorization': `Bearer ${OPENAI_API_KEY}`
+					// FormData will set its own content-type with boundary
+				},
+				body: formData
 			}
 		);
 
-		return response.data.text;
-	} catch (error) {
-		console.error('Error transcribing audio:', error);
-		throw error;
-	}
+		if (!response.ok) {
+			throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
+		}
+
+		const data = await response.json();
+		return data.text;
+	});
 }
 
 // Function to send a message via WhatsApp API
@@ -182,7 +191,7 @@ async function sendWhatsAppMessage(phoneNumberId, to, message) {
 	let lastError = null;
 
 	while (retryCount < maxRetries) {
-		try {
+		const result = await errorHandler(async () => {
 			const url = `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`;
 
 			const data = {
@@ -202,55 +211,66 @@ async function sendWhatsAppMessage(phoneNumberId, to, message) {
 				await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
 			}
 
-			const response = await axios.post(url, data, {
+			const controller = new AbortController();
+			const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+			
+			const response = await fetch(url, {
+				method: 'POST',
 				headers: {
 					'Authorization': `Bearer ${WHATSAPP_API_TOKEN}`,
 					'Content-Type': 'application/json'
 				},
-				// Add timeout to prevent hanging requests
-				timeout: 10000,
-				// Disable keep-alive to create a fresh connection each time
-				httpAgent: new (require('http').Agent)({ keepAlive: false }),
-				httpsAgent: new (require('https').Agent)({ 
-					keepAlive: false,
-					rejectUnauthorized: true,
-					secureProtocol: 'TLSv1_2_method'
-				})
+				body: JSON.stringify(data),
+				signal: controller.signal
 			});
-
-			// Log the API response
-			console.log('WhatsApp API response:', JSON.stringify(response.data));
 			
-			return response.data;
-		} catch (error) {
+			clearTimeout(timeoutId);
+
+			if (!response.ok) {
+				throw new Error(`WhatsApp API error: ${response.status} ${response.statusText}`);
+			}
+
+			const responseData = await response.json();
+			
+			// Log the API response
+			console.log('WhatsApp API response:', JSON.stringify(responseData));
+			
+			return responseData;
+		}).catch(error => {
 			lastError = error;
 			retryCount++;
 			
 			// Log detailed error information
 			console.error(`WhatsApp API error (attempt ${retryCount}/${maxRetries}):`, {
 				message: error.message,
-				code: error.code,
-				errno: error.errno,
-				syscall: error.syscall,
-				status: error.response?.status,
-				statusText: error.response?.statusText,
-				responseData: error.response?.data
+				name: error.name,
+				code: error.code
 			});
 			
 			// If we've reached max retries or it's not a retryable error, throw
 			if (retryCount >= maxRetries || 
-				(error.code !== 'EPROTO' && error.code !== 'ECONNRESET' && error.code !== 'ETIMEDOUT')) {
-				break;
+				(error.name !== 'AbortError' && error.name !== 'FetchError')) {
+				throw error;
 			}
 			
 			console.log(`Retrying WhatsApp message to ${to} in ${retryCount} second(s)...`);
-		}
+			return null; // Signal that we should retry
+		});
+		
+		// If we got a successful result, return it
+		if (result) return result;
 	}
-	
-	// If all retries failed, throw the last error
-	console.error('All attempts to send WhatsApp message failed');
-	throw lastError;
 }
+
+// Error handler utility function
+const errorHandler = async (fn, ...args) => {
+	try {
+		return await fn(...args);
+	} catch (error) {
+		console.error(`Error in ${fn.name || 'anonymous function'}:`, error);
+		throw error;
+	}
+};
 
 // Webhook endpoint to receive events
 app.post('/api/webhook', async (req, res) => {
@@ -261,7 +281,7 @@ app.post('/api/webhook', async (req, res) => {
 	// Return a '200 OK' response immediately to acknowledge receipt
 	res.status(200).send('EVENT_RECEIVED');
 
-	try {
+	await errorHandler(async () => {
 		// Check if this is an event from a WhatsApp API
 		if (body.object === 'whatsapp_business_account') {
 			// Process different types of events
@@ -284,7 +304,7 @@ app.post('/api/webhook', async (req, res) => {
 					if (message.type === 'audio') {
 						console.log('Audio message received, processing for transcription');
 
-						try {
+						await errorHandler(async () => {
 							// Download the audio file
 							const audioBuffer = await downloadMedia(message.audio.id);
 							console.log('Audio downloaded successfully');
@@ -297,7 +317,7 @@ app.post('/api/webhook', async (req, res) => {
 							const responseMessage = `📝 Transcription:\n\n${transcription}`;
 							await sendWhatsAppMessage(phoneNumberId, from, responseMessage);
 							console.log('Transcription sent to user');
-						} catch (error) {
+						}).catch(async (error) => {
 							console.error('Error processing audio message:', error);
 
 							// Send error message to user
@@ -306,7 +326,7 @@ app.post('/api/webhook', async (req, res) => {
 								from,
 								"Sorry, I couldn't transcribe your audio message. Please try again later."
 							);
-						}
+						});
 					} else if (message.type === 'text') {
 						console.log('Text message received:', message.text.body);
 
@@ -335,9 +355,7 @@ app.post('/api/webhook', async (req, res) => {
 				}
 			}
 		}
-	} catch (error) {
-		console.error('Error processing webhook event:', error);
-	}
+	});
 });
 
 // Error handling middleware
