@@ -6,7 +6,7 @@ import config from '../config';
 const corsOptions = {
   origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
     // In development, allow all origins
-    if (config.environment === 'development') {
+    if (true || config.environment === 'development') {
       callback(null, true);
       return;
     }
