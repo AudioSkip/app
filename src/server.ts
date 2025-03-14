@@ -63,3 +63,6 @@ app.listen(PORT, () => {
 	console.log(`Environment: ${config.environment}`);
 });
 // } 
+
+
+export default app;
