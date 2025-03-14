@@ -211,8 +211,8 @@ async function sendWhatsAppMessage(phoneNumberId, to, message) {
 				await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
 			}
 
-			const controller = new AbortController();
-			const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+			// const controller = new AbortController();
+			// const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 			
 			const response = await fetch(url, {
 				method: 'POST',
@@ -221,10 +221,10 @@ async function sendWhatsAppMessage(phoneNumberId, to, message) {
 					'Content-Type': 'application/json'
 				},
 				body: JSON.stringify(data),
-				signal: controller.signal
+				// signal: controller.signal
 			});
 			
-			clearTimeout(timeoutId);
+			// clearTimeout(timeoutId);
 
 			if (!response.ok) {
 				throw new Error(`WhatsApp API error: ${response.status} ${response.statusText}`);
