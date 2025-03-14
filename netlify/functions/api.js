@@ -192,7 +192,7 @@ async function sendWhatsAppMessage(phoneNumberId, to, message) {
 
 	while (retryCount < maxRetries) {
 		const result = await errorHandler(async () => {
-			const url = `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`;
+			const url = `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`;
 
 			const data = {
 				messaging_product: 'whatsapp',
