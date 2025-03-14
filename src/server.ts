@@ -6,7 +6,7 @@ import { requestLogger } from './middleware/logger';
 import { corsMiddleware, corsErrorHandler } from './middleware/cors';
 import { securityMiddleware, rateLimiter } from './middleware/security';
 import config from './config';
-
+import serverless from 'serverless-http';
 // Initialize express app
 const app = express();
 const PORT = config.port;
@@ -32,19 +32,34 @@ app.use('/api', webhookRoutes);
 
 // Root route - serve the HTML page
 app.get('/', (req: Request, res: Response) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+	res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Error handling middleware
 app.use(corsErrorHandler);
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-  errorHandler.handleError(err, req, res, next);
+	errorHandler.handleError(err, req, res, next);
 });
 
 // Start server
+// app.listen(PORT, () => {
+//   console.log(`Server is running on port ${PORT}`);
+//   console.log(`Webhook URL: http://localhost:${PORT}/api/webhook`);
+//   console.log(`Health check URL: http://localhost:${PORT}/api/health`);
+//   console.log(`Environment: ${config.environment}`);
+// }); 
+
+// module.exports.handler = serverless(app);
+
+// console.log('Initializing Netlify Function');
+// console.log(`Environment: ${config.environment}`);
+
+// Start a local server when running in development mode
+// if (process.env.NODE_ENV === 'development') {
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-  console.log(`Webhook URL: http://localhost:${PORT}/api/webhook`);
-  console.log(`Health check URL: http://localhost:${PORT}/api/health`);
-  console.log(`Environment: ${config.environment}`);
-}); 
+	console.log(`Server is running on port ${PORT}`);
+	console.log(`Webhook URL: http://localhost:${PORT}/api/webhook`);
+	console.log(`Health check URL: http://localhost:${PORT}/api/health`);
+	console.log(`Environment: ${config.environment}`);
+});
+// } 

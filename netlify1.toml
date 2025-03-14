@@ -1,22 +1,13 @@
 [build]
-  command = "npm install && npm run build"
-  publish = "dist/public"
+  command = "npm run build"
   functions = "netlify/functions"
+  publish = "dist"
 
-# Redirect API requests to the serverless function
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/api/:splat"
-  status = 200
+[dev]
+  command = "npm run dev"
+  targetPort = 3000
 
-# Redirect root to the static site
-[[redirects]]
-  from = "/"
-  to = "/index.html"
-  status = 200
-
-# Handle 404s
 [[redirects]]
   from = "/*"
-  to = "/index.html"
-  status = 200 
+  to = "/.netlify/functions/server"
+  status = 200
