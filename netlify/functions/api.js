@@ -186,80 +186,41 @@ async function transcribeAudio(audioBuffer) {
 
 // Function to send a message via WhatsApp API
 async function sendWhatsAppMessage(phoneNumberId, to, message) {
-	const maxRetries = 3;
-	let retryCount = 0;
-	let lastError = null;
+	return await errorHandler(async () => {
+		const url = `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`;
 
-	while (retryCount < maxRetries) {
-		const result = await errorHandler(async () => {
-			const url = `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`;
-
-			const data = {
-				messaging_product: 'whatsapp',
-				recipient_type: 'individual',
-				to,
-				type: 'text',
-				text: {
-					body: message
-				}
-			};
-
-			console.log(`Attempt ${retryCount + 1}/${maxRetries} to send WhatsApp message to ${to}`);
-			
-			// Add a small delay between retries
-			if (retryCount > 0) {
-				await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+		const data = {
+			messaging_product: 'whatsapp',
+			recipient_type: 'individual',
+			to,
+			type: 'text',
+			text: {
+				body: message
 			}
+		};
 
-			// const controller = new AbortController();
-			// const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-			
-			const response = await fetch(url, {
-				method: 'POST',
-				headers: {
-					'Authorization': `Bearer ${WHATSAPP_API_TOKEN}`,
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify(data),
-				// signal: controller.signal
-			});
-			
-			// clearTimeout(timeoutId);
-
-			if (!response.ok) {
-				throw new Error(`WhatsApp API error: ${response.status} ${response.statusText}`);
-			}
-
-			const responseData = await response.json();
-			
-			// Log the API response
-			console.log('WhatsApp API response:', JSON.stringify(responseData));
-			
-			return responseData;
-		}).catch(error => {
-			lastError = error;
-			retryCount++;
-			
-			// Log detailed error information
-			console.error(`WhatsApp API error (attempt ${retryCount}/${maxRetries}):`, {
-				message: error.message,
-				name: error.name,
-				code: error.code
-			});
-			
-			// If we've reached max retries or it's not a retryable error, throw
-			if (retryCount >= maxRetries || 
-				(error.name !== 'AbortError' && error.name !== 'FetchError')) {
-				throw error;
-			}
-			
-			console.log(`Retrying WhatsApp message to ${to} in ${retryCount} second(s)...`);
-			return null; // Signal that we should retry
+		console.log(`Sending WhatsApp message to ${to}`);
+		
+		const response = await fetch(url, {
+			method: 'POST',
+			headers: {
+				'Authorization': `Bearer ${WHATSAPP_API_TOKEN}`,
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify(data)
 		});
 		
-		// If we got a successful result, return it
-		if (result) return result;
-	}
+		if (!response.ok) {
+			throw new Error(`WhatsApp API error: ${response.status} ${response.statusText}`);
+		}
+
+		const responseData = await response.json();
+		
+		// Log the API response
+		console.log('WhatsApp API response:', JSON.stringify(responseData));
+		
+		return responseData;
+	});
 }
 
 // Error handler utility function

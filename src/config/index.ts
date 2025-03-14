@@ -8,8 +8,8 @@ const config = {
   whatsapp: {
     verifyToken: process.env.WHATSAPP_VERIFY_TOKEN || '',
     apiToken: process.env.WHATSAPP_API_TOKEN || '',
-    apiVersion: 'v18.0',
-    baseUrl: 'https://graph.facebook.com/v18.0'
+    apiVersion: 'v22.0',
+    baseUrl: 'https://graph.facebook.com/v22.0'
   },
   environment: process.env.NODE_ENV || 'development'
 };
