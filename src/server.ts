@@ -3,8 +3,7 @@ import path from 'path';
 import webhookRoutes from './routes/webhookRoutes';
 import errorHandler from './utils/errorHandler';
 import { requestLogger } from './middleware/logger';
-import { corsMiddleware, corsErrorHandler } from './middleware/cors';
-import { securityMiddleware, rateLimiter } from './middleware/security';
+import { corsErrorHandler } from './middleware/cors';
 import config from './config';
 
 // Initialize express app
