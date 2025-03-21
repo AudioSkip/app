@@ -12,12 +12,12 @@ const app = express();
 const PORT = config.port;
 
 // Security middleware
-app.use(securityMiddleware);
-app.use(corsMiddleware);
+// app.use(securityMiddleware);
+// app.use(corsMiddleware);
 
 // Rate limiting - 100 requests per minute for webhook endpoints
-const webhookRateLimiter = rateLimiter(100, 60 * 1000);
-app.use('/api/webhook', webhookRateLimiter);
+// const webhookRateLimiter = rateLimiter(100, 60 * 1000);
+// app.use('/api/webhook', webhookRateLimiter);
 
 // Body parsing middleware
 app.use(express.json());
